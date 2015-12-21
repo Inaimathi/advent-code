@@ -3710,3 +3710,145 @@ Dublin to Belfast = 141"))
     "{\"a\":{\"b\":4},\"c\":-1,\"d\":\"red\"}" 0)
 
 (with-open-file (s "day-12-input.json") (weird-sum-json s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 13
+
+(defparameter *day-13-input*
+  "Alice would gain 54 happiness units by sitting next to Bob.
+Alice would lose 81 happiness units by sitting next to Carol.
+Alice would lose 42 happiness units by sitting next to David.
+Alice would gain 89 happiness units by sitting next to Eric.
+Alice would lose 89 happiness units by sitting next to Frank.
+Alice would gain 97 happiness units by sitting next to George.
+Alice would lose 94 happiness units by sitting next to Mallory.
+Bob would gain 3 happiness units by sitting next to Alice.
+Bob would lose 70 happiness units by sitting next to Carol.
+Bob would lose 31 happiness units by sitting next to David.
+Bob would gain 72 happiness units by sitting next to Eric.
+Bob would lose 25 happiness units by sitting next to Frank.
+Bob would lose 95 happiness units by sitting next to George.
+Bob would gain 11 happiness units by sitting next to Mallory.
+Carol would lose 83 happiness units by sitting next to Alice.
+Carol would gain 8 happiness units by sitting next to Bob.
+Carol would gain 35 happiness units by sitting next to David.
+Carol would gain 10 happiness units by sitting next to Eric.
+Carol would gain 61 happiness units by sitting next to Frank.
+Carol would gain 10 happiness units by sitting next to George.
+Carol would gain 29 happiness units by sitting next to Mallory.
+David would gain 67 happiness units by sitting next to Alice.
+David would gain 25 happiness units by sitting next to Bob.
+David would gain 48 happiness units by sitting next to Carol.
+David would lose 65 happiness units by sitting next to Eric.
+David would gain 8 happiness units by sitting next to Frank.
+David would gain 84 happiness units by sitting next to George.
+David would gain 9 happiness units by sitting next to Mallory.
+Eric would lose 51 happiness units by sitting next to Alice.
+Eric would lose 39 happiness units by sitting next to Bob.
+Eric would gain 84 happiness units by sitting next to Carol.
+Eric would lose 98 happiness units by sitting next to David.
+Eric would lose 20 happiness units by sitting next to Frank.
+Eric would lose 6 happiness units by sitting next to George.
+Eric would gain 60 happiness units by sitting next to Mallory.
+Frank would gain 51 happiness units by sitting next to Alice.
+Frank would gain 79 happiness units by sitting next to Bob.
+Frank would gain 88 happiness units by sitting next to Carol.
+Frank would gain 33 happiness units by sitting next to David.
+Frank would gain 43 happiness units by sitting next to Eric.
+Frank would gain 77 happiness units by sitting next to George.
+Frank would lose 3 happiness units by sitting next to Mallory.
+George would lose 14 happiness units by sitting next to Alice.
+George would lose 12 happiness units by sitting next to Bob.
+George would lose 52 happiness units by sitting next to Carol.
+George would gain 14 happiness units by sitting next to David.
+George would lose 62 happiness units by sitting next to Eric.
+George would lose 18 happiness units by sitting next to Frank.
+George would lose 17 happiness units by sitting next to Mallory.
+Mallory would lose 36 happiness units by sitting next to Alice.
+Mallory would gain 76 happiness units by sitting next to Bob.
+Mallory would lose 34 happiness units by sitting next to Carol.
+Mallory would gain 37 happiness units by sitting next to David.
+Mallory would gain 40 happiness units by sitting next to Eric.
+Mallory would gain 18 happiness units by sitting next to Frank.
+Mallory would gain 7 happiness units by sitting next to George.")
+
+;; type Person = String
+;; type Happiness = Integer
+;; type SeatRating = Person Happines Person
+
+;; type RatingMap = Hash (Person, Person) Happiness
+
+;; parse-seating-arrangement :: String -> [SeatRating]
+(defun parse-seating-arrangement (str)
+  (loop for ln in (lines str)
+     for (a gain/lose num b) = (regex-groups "(\\w+) would (gain|lose) (\\d+) .*?next to (\\w+)" ln)
+     collect (list a
+		   (if (string= "gain" gain/lose)
+		       (parse-integer num)
+		       (- (parse-integer num)))
+		   b)))
+
+;; people :: [SeatRating] -> [Person]
+(defun people (seat-rating)
+  (let ((res (make-hash-table :test 'equal)))
+    (loop for (a _ b) in seat-rating
+	 do (setf (gethash a res) t
+		  (gethash b res) t))
+    (hash-table-keys res)))
+
+;; rating-map :: [SeatRating] -> RatingMap
+(defun rating-map (seat-rating)
+  (let ((res (make-hash-table :test 'equal)))
+    (loop for (a h b) in seat-rating
+       do (setf (gethash (cons a b) res) h))
+    res))
+
+;; rating-between :: RatingMap -> Person -> Person -> Happiness
+(defun rating-between (rating-map a b)
+  (+ (gethash (cons a b) rating-map)
+     (gethash (cons b a) rating-map)))
+
+;; rating-of :: RatingMap -> [Person] -> Happiness
+(defun rating-of (rating-map arrangement)
+  (loop for (a b) on arrangement while b
+     sum (rating-between rating-map a b) into total
+     finally (return (+ total (rating-between
+			       rating-map
+			       (car (last arrangement))
+			       (car arrangement))))))
+
+;; optimal-seating :: [SeatRating] -> ([Person], Happiness)
+(defun optimal-seating (seat-rating)
+  (let ((rating-map (rating-map seat-rating)))
+    (loop for arrangement in (permutations (people seat-rating))
+       maximize (rating-of rating-map arrangement))))
+
+(defparameter *day-13-test*
+  "Alice would gain 54 happiness units by sitting next to Bob.
+Alice would lose 79 happiness units by sitting next to Carol.
+Alice would lose 2 happiness units by sitting next to David.
+Bob would gain 83 happiness units by sitting next to Alice.
+Bob would lose 7 happiness units by sitting next to Carol.
+Bob would lose 63 happiness units by sitting next to David.
+Carol would lose 62 happiness units by sitting next to Alice.
+Carol would gain 60 happiness units by sitting next to Bob.
+Carol would gain 55 happiness units by sitting next to David.
+David would gain 46 happiness units by sitting next to Alice.
+David would lose 7 happiness units by sitting next to Bob.
+David would gain 41 happiness units by sitting next to Carol.")
+
+(test! #'optimal-seating
+       (parse-seating-arrangement *day-13-test*) 330)
+
+(optimal-seating (parse-seating-arrangement *day-13-input*))
+
+;; and-me :: [SeatRating] -> [SeatRating]
+(defun and-me (seat-rating)
+  (append
+   seat-rating
+   (loop for p in (people seat-rating)
+      collect (list "Me" 0 p)
+      collect (list p 0 "Me"))))
+
+(optimal-seating (and-me (parse-seating-arrangement *day-13-input*)))
