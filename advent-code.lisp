@@ -7,9 +7,7 @@
 (defun test! (fn &rest arg/res-list)
   (format t "~%~%~a: ~%" fn)
   (loop for (arg res) on arg/res-list by #'cddr
-     if (listp arg)
-     do (is (apply fn arg) res (format nil "   ~{~a~^ ~} -> ~a" arg res))
-     else do (is (funcall fn arg) res (format nil "   ~a -> ~a" arg res))))
+     do (is (funcall fn arg) res (format nil "   ~a -> ~a" arg res))))
 
 (defun lines (string)
   (split-sequence #\newline string))
@@ -3396,3 +3394,72 @@ NOT hn -> ho
 he RSHIFT 5 -> hh")
 
 (gethash :a (simulate (mapcar #'parse-connection (lines *day-7-reset*))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 8
+
+(defparameter *day-8-input*
+  (with-open-file (s "day-8-input.txt")
+    (loop for ln = (read-line s nil nil) while ln collect ln)))
+
+;; mem-length :: String -> Integer
+(defun mem-length (string)
+  (let ((ct 0)
+	(cur 0))
+    (flet ((at? (ix chr) (eql chr (char string ix))))
+      (loop while (> (length string) cur)
+	 do (cond ((and (at? cur #\\) (at? (+ cur 1) #\x))
+		   (incf cur 4)
+		   (incf ct 1))
+		  ((at? cur #\\)
+		   (incf cur 2)
+		   (incf ct 1))
+		  ((at? cur #\")
+		   (incf cur 1))
+		  (t
+		   (incf cur 1)
+		   (incf ct 1))))
+      ct)))
+
+(test! #'mem-length
+       "\"\"" 0
+       "\"abc\"" 3
+       "\"aaa\\\"aaa\"" 7
+       "\"\\x27\"" 1)
+
+;; compare-length-to-mem-length :: String -> Integer
+(defun compare-length-to-mem-length (&rest strings)
+  (loop for s in strings
+     sum (- (length s) (mem-length s))))
+
+(test! #'compare-length-to-mem-length
+       "\"\"" 2
+       "\"abc\"" 2
+       "\"aaa\\\"aaa\"" 3
+       "\"\\x27\"" 5)
+
+(apply #'compare-length-to-mem-length *day-8-input*)
+
+;; re-encode-length :: String -> Integer
+(defun re-encode-length (string)
+  (length (format nil "~s" string)))
+
+(test! #'re-encode-length
+       "\"\"" 6
+       "\"abc\"" 9
+       "\"aaa\\\"aaa\"" 16
+       "\"\\x27\"" 11)
+
+;; compare-length-to-encode-length :: String -> Integer
+(defun compare-length-to-encode-length (&rest strings)
+  (loop for s in strings
+     sum (- (re-encode-length s) (length s))))
+
+(test! #'compare-length-to-encode-length
+       "\"\"" 4
+       "\"abc\"" 4
+       "\"aaa\\\"aaa\"" 6
+       "\"\\x27\"" 5)
+
+(apply #'compare-length-to-encode-length *day-8-input*)
