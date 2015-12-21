@@ -1,4 +1,4 @@
-(ql:quickload (list :prove :split-sequence :alexandria :ironclad :cl-ppcre))
+(ql:quickload (list :prove :split-sequence :alexandria :ironclad :cl-ppcre :yason))
 (defpackage :advent-code
   (:use :cl :prove :split-sequence :alexandria))
 (in-package :advent-code)
@@ -3652,3 +3652,61 @@ Dublin to Belfast = 141"))
 (inc-string *day-11-input*)
 
 (inc-string (inc-string *day-11-input*))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 12
+
+;; liberal-sum-tree :: Tree Value -> Integer
+(defun liberal-sum-tree (tree)
+  (cond ((numberp tree) tree)
+	((consp tree)
+	 (+ (liberal-sum-tree (car tree))
+	    (liberal-sum-tree (cdr tree))))
+	(t 0)))
+
+;; liberal-sum-json :: JSONParseable a => a -> Integer
+(defun liberal-sum-json (json) (liberal-sum-tree (yason:parse json :object-as :alist)))
+
+(test! #'liberal-sum-json
+    "[1,2,3]" 6
+    "{\"a\":2,\"b\":4}" 6
+    "[[[3]]]" 3
+    "{\"a\":{\"b\":4},\"c\":-1}" 3
+    "{\"a\":[-1,1]}" 0
+    "[-1,{\"a\":1}]" 0
+    "[]" 0
+    "{}" 0)
+
+(with-open-file (s "day-12-input.json") (liberal-sum-json s))
+
+;; weird-sum-tree ::
+(defun weird-sum-tree (tree)
+  (cond ((numberp tree) tree)
+	((hash-table-p tree)
+	 (let ((vals (hash-table-values tree)))
+	   (if (find "red" vals :test #'equal)
+	       0
+	       (weird-sum-tree vals))))
+	((consp tree)
+	 (+ (weird-sum-tree (car tree))
+	    (weird-sum-tree (cdr tree))))
+	(t 0)))
+
+;; weird-sum-json :: JSONParseable a => a -> Integer
+(defun weird-sum-json (json)
+  (weird-sum-tree (yason:parse json :object-as :hash-table)))
+
+(test! #'weird-sum-json
+    "[1,2,3]" 6
+    "{\"a\":2,\"b\":4}" 6
+    "[[[3]]]" 3
+    "{\"a\":{\"b\":4},\"c\":-1}" 3
+    "{\"a\":[-1,1]}" 0
+    "[-1,{\"a\":1}]" 0
+    "[]" 0
+    "{}" 0
+    "{\"a\":2,\"b\":4,\"c\":\"red\"}" 0
+    "{\"a\":{\"b\":4},\"c\":-1,\"d\":\"red\"}" 0)
+
+(with-open-file (s "day-12-input.json") (weird-sum-json s))
