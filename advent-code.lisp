@@ -3463,3 +3463,192 @@ he RSHIFT 5 -> hh")
        "\"\\x27\"" 5)
 
 (apply #'compare-length-to-encode-length *day-8-input*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 9
+
+(defparameter *day-9-input*
+  "AlphaCentauri to Snowdin = 66
+AlphaCentauri to Tambi = 28
+AlphaCentauri to Faerun = 60
+AlphaCentauri to Norrath = 34
+AlphaCentauri to Straylight = 34
+AlphaCentauri to Tristram = 3
+AlphaCentauri to Arbre = 108
+Snowdin to Tambi = 22
+Snowdin to Faerun = 12
+Snowdin to Norrath = 91
+Snowdin to Straylight = 121
+Snowdin to Tristram = 111
+Snowdin to Arbre = 71
+Tambi to Faerun = 39
+Tambi to Norrath = 113
+Tambi to Straylight = 130
+Tambi to Tristram = 35
+Tambi to Arbre = 40
+Faerun to Norrath = 63
+Faerun to Straylight = 21
+Faerun to Tristram = 57
+Faerun to Arbre = 83
+Norrath to Straylight = 9
+Norrath to Tristram = 50
+Norrath to Arbre = 60
+Straylight to Tristram = 27
+Straylight to Arbre = 81
+Tristram to Arbre = 90")
+
+;; type Distance = Integer
+;; type Place = Symbol
+;; type Path = Place Distance Place
+;; type PathMap = Hash (Place Place) Distance
+;; type Routes = Graph [Place] PathMap
+;; type Trip = Distance [Place]
+
+;; new-routes :: [Place] -> PathMap -> Routes
+(defun new-routes (places paths) (cons places paths))
+
+;; places :: Routes -> [Place]
+(defun places (routes) (car routes))
+
+;; paths :: Routes -> [Path]
+(defun paths (routes) (cdr routes))
+
+;; parse-routes :: String -> Routes
+(defun parse-routes (string)
+  (let ((places (make-hash-table))
+	(path-map (make-hash-table :test 'equal)))
+    (flet ((to-key (s) (intern (string-upcase s) :keyword)))
+      (loop for ln in (lines string)
+	 for (a b distance) = (cl-ppcre:split " to | = " ln)
+	 do (let ((ak (to-key a))
+		  (bk (to-key b)))
+	      (setf (gethash ak places) t
+		    (gethash bk places) t
+		    (gethash (cons ak bk) path-map) (parse-integer distance)))))
+    (new-routes (hash-table-keys places) path-map)))
+
+;; permutations :: [a] -> [[a]]
+;; from http://stackoverflow.com/a/2087771/190887
+(defun permutations (list)
+  (cond ((null list) nil)
+        ((null (cdr list)) (list list))
+        (t (loop for element in list
+	      append (mapcar (lambda (l) (cons element l))
+			     (permutations (remove element list)))))))
+
+;; distance-between :: Routes -> Place -> Place -> Distance
+(defun distance-between (routes a b)
+  (or (gethash (cons a b) (paths routes))
+      (gethash (cons b a) (paths routes))))
+
+;; all-trips :: Routes -> [Trip]
+(defun all-trips (routes)
+  (loop for trip in (permutations (places routes))
+       collect (cons (loop for (a b) on trip while b sum (distance-between routes a b))
+		     trip)))
+
+;; minimum-trip-distance :: Routes -> Distance
+(defun minimum-trip-distance (routes)
+  (loop for trip in (all-trips routes)
+     minimize (car trip)))
+
+(defparameter *test-routes*
+  (parse-routes "London to Dublin = 464
+London to Belfast = 518
+Dublin to Belfast = 141"))
+
+(test! #'minimum-trip-distance
+       *test-routes* 605)
+
+(minimum-trip-distance (parse-routes *day-9-input*))
+
+(defun maximum-trip-distance (routes)
+  (loop for trip in (all-trips routes)
+     maximize (car trip)))
+
+(test! #'maximum-trip-distance
+       *test-routes* 982)
+
+(maximum-trip-distance (parse-routes *day-9-input*))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 10
+
+(defparameter *day-10-input* "3113322113")
+
+;; look-and-say :: String -> String
+(defun look-and-say (string)
+  (let ((grouped (cl-ppcre:all-matches-as-strings "(\\d)\\1*" string)))
+    (format nil "~{~a~}"
+	    (loop for g in grouped
+	       collect (length g) collect (char g 0)))))
+
+(test! #'look-and-say
+       "1" "11"
+       "11" "21"
+       "21" "1211"
+       "1211" "111221"
+       "111221" "312211")
+
+;; length-of-look-and-say-times :: Integer -> String -> Integer
+(defun length-of-look-and-say-times (count string)
+  (let ((res string))
+    (loop repeat count do (setf res (look-and-say res)))
+    (length res)))
+
+(length-of-look-and-say-times 40 *day-10-input*)
+
+(length-of-look-and-say-times 50 *day-10-input*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 11
+
+(defparameter *day-11-input* "vzbxkghb")
+
+;; has-run-of-chars? :: String -> Bool
+(defun has-run-of-chars? (string)
+  (loop for (a b c) on (mapcar #'char-code (coerce string 'list))
+     while (and a b c)
+     when (and (= b (+ a 1)) (= c (+ a 2))) return t
+     finally (return nil)))
+
+(test! #'has-run-of-chars?
+       "abc" t
+       "xyz" t
+       "xdyz" nil
+       "cba" nil)
+
+;; valid-password? :: String -> Bool
+(defun valid-password? (password)
+  (and (has-run-of-chars? password)
+       (not (cl-ppcre:scan "[iol]" password))
+       (cl-ppcre:scan "([a-z])\\1.*?([a-z])\\2" password)
+       t))
+
+(test! #'valid-password?
+       "hijklmmn" nil
+       "hjkkmmnpqr" t
+       "abbceffg" nil
+       "abbceffgh" t
+       "abbcegjk" nil
+       "abbcdegjkk" t)
+
+;; inc-string :: String -> String
+(defun inc-string (string)
+  (labels ((string-> (s) (reverse (map 'list #'char-code s)))
+	   (->string (s) (reverse (map 'string #'code-char s)))
+	   (inc (chars)
+	     (if (= 122 (car chars))
+		 (cons 97 (inc (cdr chars)))
+		 (cons (+ 1 (car chars)) (cdr chars)))))
+    (let ((cur (inc (string-> string))))
+      (loop until (valid-password? (->string cur))
+	 do (setf cur (inc cur)))
+      (->string cur))))
+
+(inc-string *day-11-input*)
+
+(inc-string (inc-string *day-11-input*))
