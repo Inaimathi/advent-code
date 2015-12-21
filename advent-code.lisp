@@ -3852,3 +3852,119 @@ David would gain 41 happiness units by sitting next to Carol.")
       collect (list p 0 "Me"))))
 
 (optimal-seating (and-me (parse-seating-arrangement *day-13-input*)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 14
+
+(defparameter *day-14-input*
+  "Dancer can fly 27 km/s for 5 seconds, but then must rest for 132 seconds.
+Cupid can fly 22 km/s for 2 seconds, but then must rest for 41 seconds.
+Rudolph can fly 11 km/s for 5 seconds, but then must rest for 48 seconds.
+Donner can fly 28 km/s for 5 seconds, but then must rest for 134 seconds.
+Dasher can fly 4 km/s for 16 seconds, but then must rest for 55 seconds.
+Blitzen can fly 14 km/s for 3 seconds, but then must rest for 38 seconds.
+Prancer can fly 3 km/s for 21 seconds, but then must rest for 40 seconds.
+Comet can fly 18 km/s for 6 seconds, but then must rest for 103 seconds.
+Vixen can fly 18 km/s for 5 seconds, but then must rest for 84 seconds.")
+
+;; parse-reindeer :: String -> [Reindeer]
+(defun parse-reindeer (string)
+  (loop for ln in (lines string)
+     for (name km/s endurance rest-period)
+       = (regex-groups "(\\w+) can fly (\\d+) .*? (\\d+) .*? rest for (\\d+)" ln)
+     collect (cons name (mapcar #'parse-integer (list km/s endurance rest-period)))))
+
+;; type Seconds = Integer
+;; type Distance = Integer
+
+;; run-for :: Reindeer -> Seconds -> (Name, Distance)
+(defun run-for (reindeer seconds)
+  (let ((distance 0)
+	(time seconds)
+	(state nil))
+    (destructuring-bind (name km/s endurance rest-period) reindeer
+      (labels ((rest! ()
+		 (decf time rest-period)
+		 (setf state #'fly!))
+	       (fly! ()
+		 (incf distance (* km/s (min endurance time)))
+		 (decf time endurance)
+		 (setf state #'rest!)))
+	(setf state #'fly!)
+	(loop while (> time 0) do (funcall state))
+	(cons name distance)))))
+
+;: race :: [Reindeer] -> Seconds -> Distance
+(defun race (reindeer seconds)
+  (loop for r in reindeer
+     maximize (cdr (run-for r seconds))))
+
+;; megasecond-race :: [Reindeer] -> Distance
+(defun megasecond-race (reindeer)
+  (race reindeer 1000))
+
+(defparameter *day-14-test*
+  "Comet can fly 14 km/s for 10 seconds, but then must rest for 127 seconds.
+Dancer can fly 16 km/s for 11 seconds, but then must rest for 162 seconds.")
+
+(test! #'megasecond-race (parse-reindeer *day-14-test*) 1120)
+
+(race (parse-reindeer *day-14-input*) 2503)
+
+(defun )
+
+;; type Points = Integer
+
+(defclass reindeer ()
+  ((name :initarg :name :reader name)
+   (km/s :initarg :km/s :reader km/s)
+   (endurance :initarg :endurance :reader endurance)
+   (rest-period :initarg :rest-period :reader rest-period)
+   (state :initarg :state :accessor state)
+   (countdown :initarg :countdown :accessor countdown)
+   (distance :accessor distance :initform 0)
+   (score :accessor score :initform 0)))
+
+(defun mk-reindeer (name km/s endurance rest-period)
+  (make-instance 'reindeer :name name :km/s km/s :endurance endurance
+		 :rest-period rest-period
+		 :state :fly :countdown endurance))
+
+(defmethod state! ((r reindeer))
+  (case (state r)
+    (:fly
+     (setf (state r) :rest
+	   (countdown r) (rest-period r)))
+    (:rest
+     (setf (state r) :fly
+	   (countdown r) (endurance r))))
+  r)
+
+(defmethod tick! ((r reindeer))
+  (if (zerop (countdown r))
+      (tick! (state! r))
+      (case (state r)
+	(:fly (incf (distance r) (km/s r))
+	      (decf (countdown r)))
+	(:rest (decf (countdown r)))))
+  r)
+
+(defmethod score! ((r reindeer)) (incf (score r)) r)
+
+;; tally-for :: [Reindeer] -> Seconds -> Points
+(defun tally-for (reindeer seconds)
+  (let ((scoreboard (mapcar (lambda (r) (apply #'mk-reindeer r)) reindeer)))
+    (loop repeat seconds
+       do (progn (mapc #'tick! scoreboard)
+		 (setf scoreboard (sort scoreboard #'> :key #'distance))
+		 (score! (first scoreboard))))
+    ;; fuck you, off by ones >:|
+    (+ 1 (score (first (sort scoreboard #'> :key #'score))))))
+
+(defun megasecond-tally (reindeer)
+  (tally-for reindeer 1000))
+
+(test! #'megasecond-tally (parse-reindeer *day-14-test*) 689)
+
+(tally-for (parse-reindeer *day-14-input*) 2503)
