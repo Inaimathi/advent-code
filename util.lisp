@@ -32,6 +32,10 @@
 (defun to-key (string)
   (intern (string-upcase string) :keyword))
 
+;; sum-by :: [a] -> (a -> Integer) -> Integer
+(defun sum-by (lst fn)
+  (loop for elem in lst sum (funcall fn elem)))
+
 ;; combinations :: [a] -> (() -> a)
 (defun combinations (elems &key (prune (constantly nil)))
   (let ((es (coerce elems 'vector))
@@ -50,6 +54,12 @@
 	(if done?
 	    (values nil nil)
 	    (values (transform (pop res)) t))))))
+
+;; for-every :: Var -> Generator a -> LoopTree a b -> [b]
+(defmacro for-every ((var generator) &body loop-clauses)
+  (let ((gen (gensym)))
+    `(loop with ,gen = ,generator for ,var = (funcall ,gen) while ,var
+	  ,@loop-clauses)))
 
 ;; permutations :: [a] -> [[a]]
 ;; from http://stackoverflow.com/a/2087771/190887

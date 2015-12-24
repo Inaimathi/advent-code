@@ -4596,10 +4596,9 @@ perfumes: 1")
 38")))
 
 (defun nog-sack (containers nog-amount &key (prune (lambda (c) (> (apply #'+ c) nog-amount))))
-  (let ((gen (combinations containers :prune prune)))
-    (length
-     (loop for res = (funcall gen) while res
-	when (= nog-amount (apply #'+ res)) collect res))))
+  (length
+   (for-every (res (combinations containers :prune prune))
+     when (= nog-amount (apply #'+ res)) collect res)))
 
 (is (nog-sack (list 20 15 10 5 5) 25) 4)
 
@@ -5032,3 +5031,99 @@ HOH")
      when (> num-p n) return (values i num-p)))
 
 (revised-first-to-get *day-20-input*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 20
+
+;; type Item = Name Cost Damage Armor
+;; type Store = Map Category [Item]
+
+(defparameter *store*
+  '(:weapons
+    ((:dagger        8     4       0)
+     (:shortsword   10     5       0)
+     (:warhammer    25     6       0)
+     (:longsword    40     7       0)
+     (:greataxe     74     8       0))
+
+    :armor
+    ((:leather      13     0       1)
+     (:chainmail    31     0       2)
+     (:splintmail   53     0       3)
+     (:bandedmail   75     0       4)
+     (:platemail   102     0       5))
+
+    :rings
+    ((:defense+1   20     0       1)
+     (:damage+1    25     1       0)
+     (:defense+2   40     0       2)
+     (:damage+2    50     2       0)
+     (:defense+3   80     0       3)
+     (:damage+3   100     3       0))))
+
+(defun item-cost (item) (second item))
+(defun item-damage (item) (third item))
+(defun item-armor (item) (fourth item))
+
+(defparameter *day-21-input*
+  "Hit Points: 109
+Damage: 8
+Armor: 2")
+
+;; type Character = { :hp :damage :armor }
+
+;; parse-boss :: String -> Character
+(defun parse-boss (string)
+  (loop for ln in (lines string)
+     for name in '(:hp :damage :armor)
+     for (_ stat) = (cl-ppcre:split ": " ln)
+     collect name collect (parse-integer stat)))
+
+;; type Swing :: (Symbol :deals Integer, Symbol :at integer :hp)
+
+;; boss-fight :: Character -> Character -> [Swing]
+(defun boss-fight (hero boss)
+  (let ((active (cons :name (cons :hero (copy-list hero))))
+	(target (cons :name (cons :boss (copy-list boss)))))
+    (loop while (and (> (getf active :hp) 0) (> (getf target :hp) 0))
+       for total-damage = (max 1 (- (getf active :damage) (getf target :armor)))
+       do (decf (getf target :hp) total-damage)
+       collect (list (getf active :name) :deals total-damage (getf target :name) :at (getf target :hp))
+       do (rotatef active target))))
+
+;; winner :: [Swing] -> Symbol
+(defun winner (swings)
+  (caar (last swings)))
+
+;; clad-hero :: [Item] -> Character
+(defun clad-hero (purchase)
+  (list :hp 100 :damage (sum-by purchase #'item-damage) :armor (sum-by purchase #'item-armor)))
+
+
+;; possible-purchases :: Store -> [[Item]]
+(defun possible-purchases (store)
+  "Note that the rules demand a weapon, allow up to one armor and allow up to 2 rings"
+  (let ((categories
+	 (mapcar (lambda (lst) (cons :weapons lst))
+		 (cons nil (for-every (c (combinations (list :armor :rings :rings))) collect c)))))
+    (remove-duplicates
+     (loop for c in categories
+	append (mapcar
+		(lambda (lst) (remove-duplicates (sort lst #'> :key #'item-cost) :test #'equal))
+		(apply #'map-product #'list (mapcar (lambda (cat) (getf store cat)) c))))
+     :test #'equal)))
+
+;; find-cheapest-effective :: Store -> Character -> Integer // Symbol // [Item]
+(defun find-cheapest-effective (store boss)
+  (loop for purchase in (sort (possible-purchases store) #'< :key (lambda (is) (sum-by is #'item-cost)))
+     for outcome = (boss-fight (clad-hero purchase) boss)
+     when (eq :hero (winner outcome))
+     return (values (sum-by purchase #'item-cost) (winner outcome) outcome)))
+
+;; find-costliest-ineffective :: Store -> Character -> Integer // Symbol // [Item]
+(defun find-costliest-ineffective (store boss)
+  (loop for purchase in (sort (possible-purchases store) #'> :key (lambda (is) (sum-by is #'item-cost)))
+     for outcome = (boss-fight (clad-hero purchase) boss)
+     when (eq :boss (winner outcome))
+     return (values (sum-by purchase #'item-cost) (winner outcome) purchase outcome)))
