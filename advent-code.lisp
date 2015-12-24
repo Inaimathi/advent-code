@@ -4987,3 +4987,48 @@ HOH")
 (defun count-steps-from-e (string)
   (let ((mol (second (alternate-parse-molecule string))))
     (- (length mol) (count-elems '(Ar Rn) mol) (* 2 (count-elems '(Y) mol)) 1)))
+
+(count-steps-from-e *day-19-input*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 20
+
+(defparameter *day-20-input* 36000000)
+
+(defun factors-of (num)
+  (remove-duplicates
+   (loop for i from 1 to (floor (sqrt num))
+      when (zerop (mod num i)) collect i and collect (/ num i))))
+
+(defun presents-at (house-num)
+  (loop for f in (factors-of house-num) sum (* f 10)))
+
+(test! #'presents-at
+       1 10
+       2 30
+       3 40
+       4 70
+       5 60
+       6 120
+       7 80
+       8 150
+       9 130)
+
+(defun first-to-get-at-least (n)
+  (loop for i from 1
+     when (> (presents-at i) n)
+     return (values i (presents-at i))))
+
+(first-to-get-at-least *day-20-input*)
+
+(defun revised-presents-at (house-num)
+  (loop for f in (factors-of house-num)
+     when (> f (floor (/ (- house-num 1) 50))) sum (* f 11)))
+
+(defun revised-first-to-get (n)
+  (loop for i from 1
+     for num-p = (revised-presents-at i)
+     when (> num-p n) return (values i num-p)))
+
+(revised-first-to-get *day-20-input*)
