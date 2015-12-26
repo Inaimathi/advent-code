@@ -2955,8 +2955,7 @@ he RSHIFT 5 -> hh")
 
 ;; parse-signal :: String -> Signal
 (defun parse-signal (string)
-  (or (parse-integer string :junk-allowed t)
-      (intern (string-upcase string) :keyword)))
+  (or (parse-integer string :junk-allowed t) (to-key string)))
 
 ;; parse-source :: String -> Source
 (defun parse-source (string)
@@ -2976,9 +2975,7 @@ he RSHIFT 5 -> hh")
 ;; parse-connection :: String -> Connection
 (defun parse-connection (string)
   (destructuring-bind (src dest) (cl-ppcre:split " -> " string)
-    (cons
-     (parse-source src)
-     (intern (string-upcase dest) :keyword))))
+    (cons (parse-source src) (to-key dest))))
 
 ;; computable? :: Source -> Bool
 (defun computable? (src)
@@ -3501,14 +3498,13 @@ Tristram to Arbre = 90")
 (defun parse-routes (string)
   (let ((places (make-hash-table))
 	(path-map (make-hash-table :test 'equal)))
-    (flet ((to-key (s) (intern (string-upcase s) :keyword)))
-      (loop for ln in (lines string)
-	 for (a b distance) = (cl-ppcre:split " to | = " ln)
-	 do (let ((ak (to-key a))
-		  (bk (to-key b)))
-	      (setf (gethash ak places) t
-		    (gethash bk places) t
-		    (gethash (cons ak bk) path-map) (parse-integer distance)))))
+    (loop for ln in (lines string)
+       for (a b distance) = (cl-ppcre:split " to | = " ln)
+       do (let ((ak (to-key a))
+		(bk (to-key b)))
+	    (setf (gethash ak places) t
+		  (gethash bk places) t
+		  (gethash (cons ak bk) path-map) (parse-integer distance))))
     (new-routes (hash-table-keys places) path-map)))
 
 ;; distance-between :: Routes -> Place -> Place -> Distance
@@ -3955,8 +3951,7 @@ Candy: capacity 0, durability -1, flavor 0, texture 5, calories 8")
   (loop for ln in (lines string)
      for (name cap dur flav tex cal)
        = (regex-groups "(\\w+):.*?([-\\d]+),.*?([-\\d]+),.*?([-\\d]+),.*?([-\\d]+),.*?([-\\d]+)" ln)
-     collect (cons (intern (string-upcase name) :keyword)
-		   (mapcar #'parse-integer (list cap dur flav tex cal)))))
+     collect (cons (to-key name) (mapcar #'parse-integer (list cap dur flav tex cal)))))
 
 (defun score (ingredients teaspoons)
   (loop for (name cap dur flav tex cal) in ingredients
@@ -5076,9 +5071,9 @@ Armor: 2")
 ;; parse-boss :: String -> Character
 (defun parse-boss (string)
   (loop for ln in (lines string)
-     for name in '(:hp :damage :armor)
-     for (_ stat) = (cl-ppcre:split ": " ln)
-     collect name collect (parse-integer stat)))
+     for (name stat) = (cl-ppcre:split ": " ln)
+     collect (if (string= name "Hit Points") :hp (to-key name))
+     collect (parse-integer stat)))
 
 ;; type Swing :: (Symbol :deals Integer, Symbol :at integer :hp)
 
@@ -5127,3 +5122,215 @@ Armor: 2")
      for outcome = (boss-fight (clad-hero purchase) boss)
      when (eq :boss (winner outcome))
      return (values (sum-by purchase #'item-cost) (winner outcome) purchase outcome)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 22
+
+(defparameter *day-22-input*
+  "Hit Points: 71
+Damage: 10")
+
+(defun magic-boss-fight)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 23
+
+(defparameter *day-23-input*
+  "jio a, +19
+inc a
+tpl a
+inc a
+tpl a
+inc a
+tpl a
+tpl a
+inc a
+inc a
+tpl a
+tpl a
+inc a
+inc a
+tpl a
+inc a
+inc a
+tpl a
+jmp +23
+tpl a
+tpl a
+inc a
+inc a
+tpl a
+inc a
+inc a
+tpl a
+inc a
+tpl a
+inc a
+tpl a
+inc a
+tpl a
+inc a
+inc a
+tpl a
+inc a
+inc a
+tpl a
+tpl a
+inc a
+jio a, +8
+inc b
+jie a, +4
+tpl a
+inc a
+jmp +2
+hlf a
+jmp -7")
+
+;; type Instruction = Hlf Register | Tpl Register | Inc Register | Jmp Integer | Jie Register Offset | Jio Register Offset
+
+;; parse-instructions :: String -> Vector Instruction
+(defun parse-instructions (string)
+  (flet ((parse-reg-pair (s)
+	   (let ((gs (regex-groups ".*? (.), (.*)" s)))
+	     (list (to-key (first gs))
+		   (parse-integer (second gs))))))
+    (coerce
+     (loop for ln in (lines string)
+	for instruction = (to-key (subseq ln 0 3))
+	for rest = (case Instruction
+		     (:jmp (list (parse-integer (subseq ln 4))))
+		     (:jie (parse-reg-pair ln))
+		     (:jio (parse-reg-pair ln))
+		     (t (list (to-key (subseq ln 4)))))
+	collect (cons instruction rest))
+     'vector)))
+
+;; type Registers = Hash Symbol Integer
+
+;; execute :: [Instruction] -> Registers? -> Registers
+(defun execute! (instructions &key (registers (eqhash :a 0 :b 0)))
+  (flet ((look (r) (gethash r registers))
+	 (bump (r fn val)
+	   (setf (gethash r registers)
+		 (funcall fn (gethash r registers) val))))
+    (let ((next 0))
+      (loop while (> (length instructions) next)
+	 for inst = (aref instructions next)
+	 do (case (car inst)
+	      (:hlf
+	       (bump (second inst) #'/ 2)
+	       (incf next))
+	      (:tpl
+	       (bump (second inst) #'* 3)
+	       (incf next))
+	      (:inc
+	       (bump (second inst) #'+ 1)
+	       (incf next))
+	      (:jmp
+	       (incf next (second inst)))
+	      (:jie (incf next (if (evenp (look (second inst))) (third inst) 1)))
+	      (:jio (incf next (if (= 1 (look (second inst))) (third inst) 1)))))))
+  registers)
+
+(defparameter *day-23-test*
+  "inc a
+jio a, +2
+tpl a
+inc a")
+
+(is (gethash :a (execute! (parse-instructions *day-23-test*))) 2)
+
+(gethash :b (execute! (parse-instructions *day-23-input*)))
+
+(gethash :b (execute! (parse-instructions *day-23-input*) :registers (eqhash :a 1 :b 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 24
+
+(defparameter *day-24-input* (mapcar #'parse-integer (lines "1
+2
+3
+5
+7
+13
+17
+19
+23
+29
+31
+37
+41
+43
+53
+59
+61
+67
+71
+73
+79
+83
+89
+97
+101
+103
+107
+109
+113")))
+
+(defun group-weight (group)
+  (apply #'+ group))
+(defun group-qe (group)
+  (apply #'* group))
+
+(defun even-weight? (grouping)
+  (destructuring-bind (a b c) grouping
+    (= (group-weight a) (group-weight b) (group-weight c))))
+
+(defun all-possible-groupings (elems)
+  (let ((groupings (list (list nil nil nil))))
+    (labels ((added (e group)
+	       (sort (cons e (copy-list group)) #'>))
+	     (add-to-groups (e groups)
+	       (destructuring-bind (a b c) groups
+		 (list (list (added e a) b c)
+		       (list a (added e b) c)
+		       (list a b (added e c)))))
+	     (remaining (groups)
+	       (reduce (lambda (memo g) (set-difference memo g)) groups :initial-value elems))
+	     (step-next! (seed)
+	       (loop for e in (add-to-groups (car (remaining seed)) seed)
+		  do (push e groupings))
+	       nil))
+      (lambda ()
+	(loop for res = (pop groupings) while res
+	   when (null (remaining res)) return res
+	   else do (step-next! res))))))
+
+(for-every (g (all-possible-groupings *day-24-input*))
+  repeat 100 when (even-weight? g) collect g)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Day 25
+
+(defun tri-num (n)
+  (/ (* n (+ n 1)) 2))
+
+(defun n-from-coords (col row)
+  (+ (tri-num (+ col row)) col))
+
+(atest! #'n-from-coords
+	'(0 0) 0 '(1 0) 2 '(2 0) 5 '(3 0) 9 '(4 0) 14 '(5 0) 20
+	'(0 1) 1 '(0 2) 3 '(0 3) 6 '(0 4) 10 '(0 5) 15
+	'(1 2) 7 '(3 2) 18 '(2 3) 17)
+
+(defun nth-code (n)
+  (let ((code 20151125))
+    (loop repeat n
+       do (setf code (mod (* 252533 code) 33554393)))
+    code))
+
+(nth-code (n-from-coords (- 3019 1) (- 3010 1)))

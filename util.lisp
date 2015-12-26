@@ -10,6 +10,12 @@
   (loop for (arg res) on arg/res-list by #'cddr
      do (is (funcall fn arg) res (format nil "   ~a -> ~a" arg res))))
 
+;; test! :: (a... -> b) -> [[a...], b] -> IO ()
+(defun atest! (fn &rest arg/res-list)
+  (format t "~%~%~a: ~%" fn)
+  (loop for (arg res) on arg/res-list by #'cddr
+     do (is (apply fn arg) res (format nil "   ~{~a~^ ~}-> ~a" arg res))))
+
 ;; lines :: String -> [String]
 (defun lines (string)
   (split-sequence #\newline string))
@@ -36,7 +42,9 @@
 (defun sum-by (lst fn)
   (loop for elem in lst sum (funcall fn elem)))
 
-;; combinations :: [a] -> (() -> a)
+;; type Generator a = () -> a
+
+;; combinations :: [a] -> Generator a
 (defun combinations (elems &key (prune (constantly nil)))
   (let ((es (coerce elems 'vector))
 	(ixs (loop for i from 0 to (- (length elems) 1) collect i))
@@ -78,3 +86,7 @@
 ;; coun-elems :: Eq a => [a] -> [a] -> Integer
 (defun count-elems (targets lst)
   (count-if (lambda (e) (member e targets)) lst))
+
+;; eqhash :: [a b] -> Hash a b
+(defun eqhash (&rest k/v-pairs)
+  (plist-hash-table k/v-pairs))
